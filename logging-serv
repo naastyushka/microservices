@@ -1,0 +1,23 @@
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+log_store = {}
+
+@app.route('/logging', methods=['POST', 'GET'])
+def log_handler():
+    if request.method == 'POST':
+        entry_id = request.form.get('id')
+        content = request.form.get('txt')
+        if not (entry_id and content):
+            return jsonify('Missing id or content'), 400
+        log_store[entry_id] = content
+        print('Logged:', content)
+        return jsonify('Log entry saved'), 201
+
+    if request.method == 'GET':
+        return '; '.join(log_store.values()) if log_store else 'No log entries', 200
+
+    return jsonify('Unsupported method'), 405
+
+if __name__ == '__main__':
+    app.run(port=8881)
