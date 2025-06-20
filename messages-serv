@@ -1,0 +1,14 @@
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+@app.route('/messages', methods=['GET'])
+def messages_view():
+    return 'Functionality coming soon.', 200  # Змінено повідомлення
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return jsonify('This method is not supported here'), 405
+
+if __name__ == '__main__':
+    app.run(port=8882)
