@@ -4,7 +4,7 @@ app = Flask(__name__)
 
 @app.route('/messages', methods=['GET'])
 def messages_view():
-    return 'Functionality coming soon.', 200  # Змінено повідомлення
+    return 'Functionality coming soon.', 200  
 
 @app.errorhandler(405)
 def method_not_allowed(e):
