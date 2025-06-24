@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import hazelcast, argparse, os
-from isrunning import is_container_running
+from check_running import is_container_running
 
 web_service = Flask(__name__)
 cmd_parser = argparse.ArgumentParser()
