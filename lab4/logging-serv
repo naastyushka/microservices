@@ -4,9 +4,9 @@ from check_running import is_container_running
 
 web_app = Flask(__name__)
 
-cmd_parser = argparse.ArgumentParser()
-cmd_parser.add_argument("--port", type=int, required=True)
-parsed_args = cmd_parser.parse_args()
+argument_parser = argparse.ArgumentParser()
+argument_parser.add_argument("--port", type=int, required=True)
+cli_args = argument_parser.parse_args()
 
 docker_services = ['my-first-member', 'my-second-member', 'my-third-member', 'manage-cent']
 active_service = None
