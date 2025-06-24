@@ -1,66 +1,67 @@
 from flask import Flask, request, jsonify
 import requests, uuid, random, socket, hazelcast
 
-application = Flask(__name__)
+web_service = Flask(__name__)
 
-audit_service_ports = [8881, 8882, 8883]
-data_service_ports = [88844, 8885]
+tracker_service_ports = [8881, 8882, 8883]
+content_service_ports = [8884, 8885]
 
-hazelcast_client = hazelcast.HazelcastClient(cluster_name='hello-world')
-task_queue = hazelcast_client.get_queue("queue").blocking()
-cached_data_responses = []
+cluster_connection = hazelcast.HazelcastClient(cluster_name='hello-world')
+work_queue = cluster_connection.get_queue("queue").blocking()
+cached_content_responses = []
 
-def check_port_availability(port_number):
-    connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    port_status = connection.connect_ex(('127.0.0.1', port_number))
-    connection.close()
-    return True if port_status == 0 else False
+def check_service_availability(port_num):
+    network_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    connection_result = network_socket.connect_ex(('127.0.0.1', port_num))
+    network_socket.close()
+    return True if connection_result == 0 else False
 
-def select_available_port(port_list):
-    available_ports = port_list[:]
+def select_working_port(port_collection):
+    working_ports = port_collection[:]
     while True:
-        if len(available_ports) == 0:
-            print('no available ports found')
-        selected_port = random.choice(available_ports)
-        if not check_port_availability(selected_port):
-            print(selected_port, 'is not available')
-            available_ports.remove(selected_port)
+        if len(working_ports) == 0:
+            print('no working ports available')
+            break
+        chosen_port = random.choice(working_ports)
+        if not check_service_availability(chosen_port):
+            print(chosen_port, 'is unavailable')
+            working_ports.remove(chosen_port)
         else: 
-            return selected_port
+            return chosen_port
 
-@application.route('/', methods=['POST', 'GET'])
-def handle_request():
+@web_service.route('/', methods=['POST', 'GET'])
+def request_handler():
     
-    audit_port = select_available_port(audit_service_ports)
-    print(f'audit service port: {audit_port}')
+    tracker_port = select_working_port(tracker_service_ports)
+    print(f'tracker service port: {tracker_port}')
  
     if request.method == 'POST':
-        user_text = request.form.get('txt')
-        if not user_text:
+        user_input = request.form.get('txt')
+        if not user_input:
             return jsonify('No message'), 400
         
-        message_id = str(uuid.uuid4())
-        payload = {'id': message_id, 'txt': user_text}
+        unique_id = str(uuid.uuid4())
+        request_data = {'id': unique_id, 'txt': user_input}
         
-        audit_request = requests.post(f'http://localhost:{audit_port}/', data=payload)
-        task_queue.put(user_text)
+        service_call = requests.post(f'http://localhost:{tracker_port}/', data=request_data)
+        work_queue.put(user_input)
         
-        return jsonify(payload), 200
+        return jsonify(request_data), 200
     
     elif request.method == 'GET':
-        data_port = select_available_port(data_service_ports)
-        print(f'data service port: {data_port}')
+        content_port = select_working_port(content_service_ports)
+        print(f'content service port: {content_port}')
         
-        audit_response, data_response = requests.get(f'http://localhost:{audit_port}/'), requests.get(f'http://localhost:{data_port}/')
+        tracker_result, content_result = requests.get(f'http://localhost:{tracker_port}/'), requests.get(f'http://localhost:{content_port}/')
         
-        for item in data_response.json():
-            if item not in cached_data_responses:
-                cached_data_responses.append(item)
+        for entry in content_result.json():
+            if entry not in cached_content_responses:
+                cached_content_responses.append(entry)
                 
-        return [f'audit-service: {audit_response.json()}'[:-1], f'data-service: {cached_data_responses}'], 200
+        return [f'tracker-service: {tracker_result.json()}'[:-1], f'content-service: {cached_content_responses}'], 200
     
     else:
         return jsonify('Method not allowed'), 405
 
 if __name__ == '__main__':
-    application.run(port=8880)
+    web_service.run(port=8880)
