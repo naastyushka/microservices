@@ -1,0 +1,34 @@
+from flask import Flask, request, jsonify
+import hazelcast, argparse, threading
+
+server = Flask(__name__)
+
+argument_parser = argparse.ArgumentParser()
+argument_parser.add_argument("--port", type=int, required=True)
+cli_args = argument_parser.parse_args()
+
+hazelcast_connection = hazelcast.HazelcastClient(cluster_name='hc')
+task_queue = hazelcast_connection.get_queue("queue").blocking()
+received_data = []
+
+def process_queue_data():
+    while True:
+        try:
+            queue_item = task_queue.take()
+            received_data.append(queue_item)
+            print(f'Data received: {queue_item}')
+        except:
+            hazelcast_connection.shutdown()
+            exit()
+            
+@server.route('/', methods=['GET'])
+def handle_request():
+    if request.method == 'GET':
+        return received_data
+    else:
+        return jsonify('Method not allowed'), 405
+        
+if __name__ == '__main__':
+    background_worker = threading.Thread(target=process_queue_data)
+    background_worker.start()
+    server.run(port=cli_args.port)
