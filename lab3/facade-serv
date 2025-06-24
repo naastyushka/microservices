@@ -1,0 +1,49 @@
+from flask import Flask, request, jsonify
+import requests, uuid, random, socket
+
+web_app = Flask(__name__)
+msg-serv = 'http://localhost:8884/'
+log_service_ports = [8881, 8882, 8883]
+
+def check_port_availability(port_num):
+    connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    port_status = connection.connect_ex(('127.0.0.1', port_num))
+    connection.close()
+    return True if port_status == 0 else False
+
+@web_app.route('/', methods=['POST', 'GET'])
+def main_handler():
+    available_ports = log_service_ports[:]
+    
+    while True:
+        if len(available_ports) == 0:
+            print('all ports are closed')
+            break
+        selected_port = random.choice(available_ports)
+        if not check_port_availability(selected_port):
+            print(selected_port, 'is closed')
+            available_ports.remove(selected_port)
+        else: 
+            break
+    
+    print(f'logging port: {selected_port}')
+    
+    if request.method == 'POST':
+        user_text = request.form.get('txt')
+        if not user_text:
+            return jsonify('No message'), 400
+        
+        message_id = str(uuid.uuid4())
+        payload = {'id': message_id, 'txt': user_text}
+        log_request = requests.post(f'http://localhost:{selected_port}/', data=payload)
+        return jsonify(payload), 200
+    
+    elif request.method == 'GET':
+        log_response, msg_response = requests.get(f'http://localhost:{selected_port}/'), requests.get(msg_serv)
+        return [f'logging-service: {log_response.text}'[:-1], f'message-service: {msg_response.text}'], 200
+    
+    else:
+        return jsonify('Method not allowed'), 405
+
+if __name__ == '__main__':
+    web_app.run(port=8880)
