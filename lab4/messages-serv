@@ -16,7 +16,7 @@ def process_queue_data():
         try:
             queue_item = task_queue.take()
             received_data.append(queue_item)
-            print(f'Data received: {queue_item}')
+            print(f'Message: {queue_item}')
         except:
             hazelcast_connection.shutdown()
             exit()
