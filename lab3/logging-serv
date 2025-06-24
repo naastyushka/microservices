@@ -1,0 +1,46 @@
+from flask import Flask, request, jsonify
+import hazelcast, argparse, os
+from isrunning import is_container_running
+
+web_service = Flask(__name__)
+cmd_parser = argparse.ArgumentParser()
+cmd_parser.add_argument("--port", type=int, required=True)
+cli_args = cmd_parser.parse_args()
+
+docker_instances = ['my-first-member', 'my-second-member', 'my-third-member', 'manage-cent']
+
+for instance in docker_instances[:-1]:
+    if not is_container_running(instance):
+        os.system(f'docker start {instance}')
+        active_container = instance
+        break
+
+if not is_container_running(docker_instances[-1]):
+    os.system(f'docker start {docker_instances[-1]}')
+
+hz_client = hazelcast.HazelcastClient(cluster_name='hello-world')
+data_store = hz_client.get_map('messages').blocking() 
+
+@web_service.route('/', methods=['POST', 'GET'])
+def handle_request():
+    if request.method == 'POST':
+        record_id, content = request.form.get('id'), request.form.get('txt')
+        if not (record_id or content):
+            return jsonify('No id or text'), 400
+        data_store.put(record_id, content)
+        print('Message:', content)
+        return jsonify('Message was logged'), 201
+    
+    elif request.method == 'GET':
+        return [data_store.get(k) for k in data_store.key_set()]
+    
+    else:
+        return jsonify('Method not allowed'), 405
+
+web_service.run(port=cli_args.port)
+
+try:
+    while True: pass
+except KeyboardInterrupt:
+    hz_client.shutdown()
+    os.system(f'docker stop {active_container}')
