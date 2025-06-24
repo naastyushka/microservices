@@ -7,7 +7,7 @@ argument_parser = argparse.ArgumentParser()
 argument_parser.add_argument("--port", type=int, required=True)
 cli_args = argument_parser.parse_args()
 
-hazelcast_connection = hazelcast.HazelcastClient(cluster_name='hc')
+hazelcast_connection = hazelcast.HazelcastClient(cluster_name='hello-world')
 task_queue = hazelcast_connection.get_queue("queue").blocking()
 received_data = []
 
