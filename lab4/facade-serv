@@ -1,0 +1,66 @@
+from flask import Flask, request, jsonify
+import requests, uuid, random, socket, hazelcast
+
+application = Flask(__name__)
+
+audit_service_ports = [8881, 8882, 8883]
+data_service_ports = [88844, 8885]
+
+hazelcast_client = hazelcast.HazelcastClient(cluster_name='hello-world')
+task_queue = hazelcast_client.get_queue("queue").blocking()
+cached_data_responses = []
+
+def check_port_availability(port_number):
+    connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    port_status = connection.connect_ex(('127.0.0.1', port_number))
+    connection.close()
+    return True if port_status == 0 else False
+
+def select_available_port(port_list):
+    available_ports = port_list[:]
+    while True:
+        if len(available_ports) == 0:
+            print('no available ports found')
+        selected_port = random.choice(available_ports)
+        if not check_port_availability(selected_port):
+            print(selected_port, 'is not available')
+            available_ports.remove(selected_port)
+        else: 
+            return selected_port
+
+@application.route('/', methods=['POST', 'GET'])
+def handle_request():
+    
+    audit_port = select_available_port(audit_service_ports)
+    print(f'audit service port: {audit_port}')
+ 
+    if request.method == 'POST':
+        user_text = request.form.get('txt')
+        if not user_text:
+            return jsonify('No message'), 400
+        
+        message_id = str(uuid.uuid4())
+        payload = {'id': message_id, 'txt': user_text}
+        
+        audit_request = requests.post(f'http://localhost:{audit_port}/', data=payload)
+        task_queue.put(user_text)
+        
+        return jsonify(payload), 200
+    
+    elif request.method == 'GET':
+        data_port = select_available_port(data_service_ports)
+        print(f'data service port: {data_port}')
+        
+        audit_response, data_response = requests.get(f'http://localhost:{audit_port}/'), requests.get(f'http://localhost:{data_port}/')
+        
+        for item in data_response.json():
+            if item not in cached_data_responses:
+                cached_data_responses.append(item)
+                
+        return [f'audit-service: {audit_response.json()}'[:-1], f'data-service: {cached_data_responses}'], 200
+    
+    else:
+        return jsonify('Method not allowed'), 405
+
+if __name__ == '__main__':
+    application.run(port=8880)
